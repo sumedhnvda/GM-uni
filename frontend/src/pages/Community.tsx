@@ -47,26 +47,30 @@ const Community: React.FC = () => {
 
     const [error, setError] = useState<string | null>(null);
     const [moderationWarning, setModerationWarning] = useState<string | null>(null);
-    const [headerVisible, setHeaderVisible] = useState(true);
-    const lastScrollY = useRef(0);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
-    const initialLoadRef = useRef(true);
+    const prevMessageCountRef = useRef(0);
 
     const wsRef = useRef<WebSocket | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Only scroll to bottom for new messages, not on initial load
+    // Scroll to bottom only when new messages are added
     useEffect(() => {
-        if (initialLoadRef.current) {
-            // On initial load, scroll instantly without animation
-            messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
-            initialLoadRef.current = false;
-        } else if (messages.length > 0) {
-            // New message - smooth scroll
-            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        const currentCount = messages.length;
+        const prevCount = prevMessageCountRef.current;
+
+        if (currentCount > prevCount && prevCount > 0) {
+            // New message added - scroll smoothly
+            setTimeout(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+        } else if (currentCount > 0 && prevCount === 0) {
+            // Initial load - scroll instantly without animation
+            messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
         }
-    }, [messages]);
+
+        prevMessageCountRef.current = currentCount;
+    }, [messages.length]);
 
     // Fetch room info and messages
     useEffect(() => {
@@ -322,23 +326,7 @@ const Community: React.FC = () => {
         return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
     };
 
-    // Handle scroll to hide/show header on mobile
-    const handleScroll = () => {
-        const container = messagesContainerRef.current;
-        if (!container) return;
-
-        const currentScrollY = container.scrollTop;
-        const isScrollingDown = currentScrollY > lastScrollY.current;
-
-        // Only hide if scrolled more than 50px
-        if (currentScrollY > 50) {
-            setHeaderVisible(!isScrollingDown);
-        } else {
-            setHeaderVisible(true);
-        }
-
-        lastScrollY.current = currentScrollY;
-    };
+    // Removed scroll handler - was causing shaking issues
 
     const getMediaUrl = (url?: string) => {
         if (!url) return '';
@@ -385,8 +373,8 @@ const Community: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full min-h-0 bg-gray-50 -mx-4 md:mx-0 -mt-3 md:mt-0">
-            {/* Header - Auto-hide on scroll for mobile */}
-            <div className={`bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-5 py-2 md:px-6 md:py-3 shadow-lg flex-shrink-0 transition-all duration-300 md:translate-y-0 ${headerVisible ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 absolute'}`}>
+            {/* Header - Static, no animation */}
+            <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-5 py-2 md:px-6 md:py-3 shadow-lg flex-shrink-0">
                 <div className="flex items-center gap-2 md:gap-3">
                     <div className="p-1.5 md:p-2 bg-white/20 rounded-lg md:rounded-xl">
                         <MessageCircle className="w-5 h-5 md:w-6 md:h-6" />
@@ -428,11 +416,10 @@ const Community: React.FC = () => {
             {/* Messages */}
             <div
                 ref={messagesContainerRef}
-                onScroll={handleScroll}
                 className="flex-1 overflow-y-auto px-3 py-3 md:p-4 space-y-3 md:space-y-4"
             >
                 {messages.length === 0 ? (
-                    <div className="text-center text-gray-500 mt-8 animate-fade-in">
+                    <div className="text-center text-gray-500 mt-8">
                         <MessageCircle className="w-12 h-12 mx-auto text-gray-300 mb-3" />
                         <p className="font-medium">No messages yet</p>
                         <p className="text-sm">Be the first to start the conversation!</p>

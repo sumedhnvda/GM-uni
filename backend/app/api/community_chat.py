@@ -285,16 +285,20 @@ async def websocket_chat(websocket: WebSocket, room_id: str, token: Optional[str
                 
                 client_id = data.get("client_id")
 
-                # Moderate text content
+                # Moderate text content with proper error handling
                 if content and message_type == "text":
-                    is_allowed, reason = await gemini_service.moderate_text(content)
-                    if not is_allowed:
-                        await websocket.send_json({
-                            "type": "moderation_warning",
-                            "message": f"Your message was not sent: {reason}. Please keep discussions related to agriculture.",
-                            "client_id": client_id
-                        })
-                        continue
+                    try:
+                        is_allowed, reason = await gemini_service.moderate_text(content)
+                        if not is_allowed:
+                            await websocket.send_json({
+                                "type": "moderation_warning",
+                                "message": f"Message blocked: {reason}",
+                                "client_id": client_id
+                            })
+                            continue
+                    except Exception as e:
+                        # On any moderation error, allow the message through
+                        print(f"Moderation error (allowing message): {e}")
                 
                 # Save message
                 msg = CommunityMessage(
