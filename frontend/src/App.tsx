@@ -12,6 +12,7 @@ import LiveCall from './pages/LiveCall';
 import Admin from './pages/Admin';
 import Community from './pages/Community';
 import ProtectedRoute from './components/ProtectedRoute';
+import NotFound from './pages/NotFound';
 
 // Replace with your actual Google Client ID
 const GOOGLE_CLIENT_ID = "654672249010-0d7v7ik6g1lqkgt8cdec4lcapl5h3g2d.apps.googleusercontent.com";
@@ -42,6 +43,9 @@ function App() {
                 } />
               </Route>
             </Route>
+
+            {/* 404 Catch-all Route */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </div>
       </Router>
@@ -50,4 +54,3 @@ function App() {
 }
 
 export default App;
-
