@@ -104,7 +104,19 @@ const Community: React.FC = () => {
         const token = localStorage.getItem('token');
         if (!token) return;
 
-        const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:8000/api/ws/community/${roomId}?token=${token}`;
+        // Derive WebSocket URL from API_URL
+        // API_URL is like https://gm-uni.onrender.com/api/v1 or http://localhost:8000/api/v1
+        let wsBase: string;
+        try {
+            const apiUrl = new URL(API_URL);
+            const wsProtocol = apiUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+            wsBase = `${wsProtocol}//${apiUrl.host}`;
+        } catch {
+            // Fallback for local development
+            wsBase = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:8000`;
+        }
+
+        const wsUrl = `${wsBase}/api/ws/community/${roomId}?token=${token}`;
 
         const ws = new WebSocket(wsUrl);
 

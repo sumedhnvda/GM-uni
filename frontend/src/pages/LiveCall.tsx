@@ -288,9 +288,22 @@ const LiveCall: React.FC = () => {
                 navigate('/login');
                 return;
             }
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            // In production, use the actual backend URL. For dev, it's localhost:8000
-            const wsUrl = `${wsProtocol}//${window.location.hostname}:8000/api/ws/live?token=${token}`;
+
+            // Derive WebSocket URL from API_URL for production
+            // API_URL is like https://gm-uni.onrender.com/api/v1 or http://localhost:8000/api/v1
+            let wsBase: string;
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+            try {
+                const parsed = new URL(apiUrl);
+                const wsProtocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+                wsBase = `${wsProtocol}//${parsed.host}`;
+            } catch {
+                // Fallback for local development
+                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                wsBase = `${wsProtocol}//${window.location.hostname}:8000`;
+            }
+
+            const wsUrl = `${wsBase}/api/ws/live?token=${token}`;
 
             const ws = new WebSocket(wsUrl);
             wsRef.current = ws;
