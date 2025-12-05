@@ -12,6 +12,17 @@ import os
 # IST timezone (UTC+5:30)
 IST = timezone(timedelta(hours=5, minutes=30))
 
+def to_ist_string(dt: datetime) -> str:
+    """Convert datetime to IST and return ISO format string."""
+    if dt is None:
+        return None
+    # If naive datetime, assume UTC
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    # Convert to IST
+    ist_dt = dt.astimezone(IST)
+    return ist_dt.isoformat()
+
 from app.models import User, CommunityMessage, CommunityRoom
 
 from app.services.gemini_service import gemini_service
@@ -150,7 +161,7 @@ async def get_messages(room_id: str, limit: int = 50, current_user: User = Depen
             "content": msg.content,
             "message_type": msg.message_type,
             "media_url": msg.media_url,
-            "created_at": msg.created_at.isoformat(),
+            "created_at": to_ist_string(msg.created_at),
             "is_own": msg.user_email == current_user.email
         }
         for msg in messages
@@ -346,7 +357,7 @@ async def websocket_chat(websocket: WebSocket, room_id: str, token: Optional[str
                         "content": msg.content,
                         "message_type": msg.message_type,
                         "media_url": msg.media_url,
-                        "created_at": msg.created_at.isoformat()
+                        "created_at": to_ist_string(msg.created_at)
                     }
                 })
                 
