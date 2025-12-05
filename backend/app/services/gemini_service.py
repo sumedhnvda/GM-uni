@@ -83,31 +83,38 @@ class GeminiService:
         Returns (is_allowed, reason)
         """
         if not self.client:
-            # If no API key, allow by default
             return True, "Moderation disabled"
         
-        # Allow short messages like greetings without API call
-        if len(content.strip()) < 15:
-            return True, "Short message allowed"
+        # Allow very short greetings without API call
+        content_lower = content.strip().lower()
+        greetings = ['hi', 'hello', 'namaste', 'namaskar', 'jai', 'ram', 'hey', 'hii', 'ok', 'yes', 'no', 'thanks', 'dhanyawad', 'shukriya']
+        if len(content.strip()) < 10 or any(content_lower.startswith(g) for g in greetings):
+            return True, "Greeting allowed"
 
         try:
-            prompt = f"""You are a lenient moderator for an Indian farmer community chat.
+            prompt = f"""You are a STRICT moderator for an Indian farmer community chat.
+This chat is ONLY for agriculture discussions.
 
 Message: "{content}"
 
-ALLOW (respond only "YES"):
-- Any farming/agriculture topic
-- Greetings, casual chat
-- Questions, advice
-- Food, weather, prices
-- Hindi/regional languages
-- General conversation
+ALLOW (respond "YES"):
+- Greetings (hi, hello, namaste, jai shri ram, etc.)
+- Farming, crops, seeds, fertilizer, pesticides
+- Soil, irrigation, tractors, equipment
+- Weather related to farming
+- Crop prices, market rates, mandi
+- Government schemes for farmers
+- Questions about agriculture
 
-BLOCK (respond only "NO"):
-- Explicit abuse/hate
-- Spam/ads
-- Inappropriate content
+BLOCK (respond "NO"):
+- Politics, religion debates
+- Movies, cricket, entertainment
+- Personal chats unrelated to farming
+- Random conversations
+- Tech, phones, gadgets (unless farm related)
+- Any non-agriculture topic
 
+Be STRICT. If not clearly about agriculture/farming, block it.
 Respond with ONLY "YES" or "NO"."""
             
             response = self.client.models.generate_content(
@@ -119,15 +126,12 @@ Respond with ONLY "YES" or "NO"."""
             
             if "YES" in result:
                 return True, "Approved"
-            elif "NO" in result:
-                return False, "Content not appropriate for this community"
             else:
-                # If unclear response, allow
-                return True, "Approved"
+                return False, "Only agriculture-related messages are allowed in this community"
                 
         except Exception as e:
             print(f"Moderation error: {e}")
-            # On ANY error, allow the message
+            # On error, allow to prevent blocking valid messages
             return True, "Approved"
 
     async def generate_news_with_search(self, prompt: str) -> str:

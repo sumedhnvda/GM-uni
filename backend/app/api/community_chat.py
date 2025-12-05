@@ -313,6 +313,24 @@ async def websocket_chat(websocket: WebSocket, room_id: str, token: Optional[str
                 )
                 await msg.save()
                 
+                # Keep only last 50 messages per room - delete older ones
+                MAX_MESSAGES = 50
+                message_count = await CommunityMessage.find(
+                    CommunityMessage.room_id == room_id,
+                    CommunityMessage.is_deleted == False
+                ).count()
+                
+                if message_count > MAX_MESSAGES:
+                    # Get oldest messages to delete
+                    excess = message_count - MAX_MESSAGES
+                    old_messages = await CommunityMessage.find(
+                        CommunityMessage.room_id == room_id,
+                        CommunityMessage.is_deleted == False
+                    ).sort(CommunityMessage.created_at).limit(excess).to_list()
+                    
+                    for old_msg in old_messages:
+                        await old_msg.delete()
+                
                 # Broadcast to room
                 await manager.broadcast(room_id, {
                     "type": "new_message",
