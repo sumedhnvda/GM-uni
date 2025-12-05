@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cropic - Smart Farming Assistant</title>
+
+  <!-- Google Translate Removed - Reset to English -->
+  <script type="text/javascript">
+    (function () {
+      // Aggressively clear all Google Translate cookies to reset to English
+      var cookies = ['googtrans', 'googtransopt', 'googtrans-ltr', 'googtrans-rtl'];
+      var domains = [window.location.hostname, '.' + window.location.hostname, 'localhost', '.localhost'];
+      var paths = ['/', ''];
+
+      cookies.forEach(function (name) {
+        domains.forEach(function (domain) {
+          paths.forEach(function (path) {
+            var domainPart = domain ? '; domain=' + domain : '';
+            var pathPart = path ? '; path=' + path : '';
+            document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT' + pathPart + domainPart;
+          });
+        });
+      });
+
+      // Reset HTML lang
+      document.documentElement.lang = 'en';
+    })();
+  </script>
+
+  <style>
+    body {
+      top: 0 !important;
+      position: static !important;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="google_translate_element"></div>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>
