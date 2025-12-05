@@ -3,11 +3,14 @@ Community Chat API - Real-time WebSocket chat for farmers by location.
 """
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, UploadFile, File
 from typing import Dict, List, Set, Optional
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import json
 import re
 import base64
 import os
+
+# IST timezone (UTC+5:30)
+IST = timezone(timedelta(hours=5, minutes=30))
 
 from app.models import User, CommunityMessage, CommunityRoom
 
@@ -300,7 +303,7 @@ async def websocket_chat(websocket: WebSocket, room_id: str, token: Optional[str
                         # On any moderation error, allow the message through
                         print(f"Moderation error (allowing message): {e}")
                 
-                # Save message
+                # Save message with IST timestamp
                 msg = CommunityMessage(
                     room_id=room_id,
                     user_email=user.email,
@@ -309,7 +312,7 @@ async def websocket_chat(websocket: WebSocket, room_id: str, token: Optional[str
                     content=content,
                     message_type=message_type,
                     media_url=media_url,
-                    created_at=datetime.now()
+                    created_at=datetime.now(IST)
                 )
                 await msg.save()
                 
