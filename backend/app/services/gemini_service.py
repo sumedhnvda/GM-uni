@@ -79,23 +79,43 @@ class GeminiService:
 
     async def moderate_text(self, content: str) -> tuple[bool, str]:
         """
-        Check if text is agriculture-related using Gemini.
+        Check if text is appropriate for agricultural community chat.
         Returns (is_allowed, reason)
         """
         if not self.client:
-            return False, "Gemini API Key not configured."
+            # If no API key, allow by default
+            return True, "Moderation disabled"
+        
+        # Allow short messages like greetings
+        if len(content) < 20:
+            return True, "Short message allowed"
 
         try:
             prompt = f"""
-            You are a content moderator for an agricultural community chat.
-            Determine if the following message is related to agriculture, farming, rural life, or nature.
+            You are a lenient content moderator for a farmer community chat in India.
+            Your job is to ONLY block clearly inappropriate content.
             
             Message: "{content}"
             
-            ALLOWED: Farming, crops, weather, soil, equipment, prices, schemes, greetings, rural life.
-            NOT ALLOWED: Politics, religion, hate speech, spam, irrelevant topics.
+            ALLOW these (respond "ALLOWED"):
+            - Greetings (hi, hello, namaste, kaise ho, etc.)
+            - Farming, crops, weather, soil, seeds, fertilizer
+            - Questions about agriculture, prices, markets
+            - General conversation, humor, casual chat
+            - Rural life, village topics
+            - Food, cooking, recipes
+            - Family, health discussions
+            - Advice, tips, suggestions
+            - ANY message in Hindi, Marathi, or other Indian languages
+            - Anything that could remotely be farmer community related
             
-            Answer ONLY with "ALLOWED" or "NOT_ALLOWED: [reason]".
+            ONLY BLOCK these (respond "NOT_ALLOWED: reason"):
+            - Explicit hate speech or abuse
+            - Spam or advertisements
+            - Very explicit inappropriate content
+            
+            Be VERY lenient. When in doubt, ALLOW the message.
+            Answer ONLY with "ALLOWED" or "NOT_ALLOWED: [short reason]".
             """
             
             response = self.client.models.generate_content(
@@ -105,15 +125,19 @@ class GeminiService:
             
             result = response.text.strip()
             
-            if result.startswith("ALLOWED"):
+            if "ALLOWED" in result.upper():
                 return True, "Content approved"
+            elif "NOT_ALLOWED" in result.upper():
+                reason = result.replace("NOT_ALLOWED:", "").replace("NOT_ALLOWED", "").strip()
+                return False, reason or "Content not appropriate"
             else:
-                reason = result.replace("NOT_ALLOWED:", "").strip()
-                return False, reason or "Content not related to agriculture"
+                # If unclear, allow by default
+                return True, "Content approved"
                 
         except Exception as e:
             print(f"Text Moderation Error: {e}")
-            return False, "Moderation check failed."
+            # On error, allow the message
+            return True, "Moderation check skipped"
 
     async def generate_news_with_search(self, prompt: str) -> str:
         """

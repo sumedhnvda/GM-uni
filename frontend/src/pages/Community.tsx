@@ -50,16 +50,23 @@ const Community: React.FC = () => {
     const [headerVisible, setHeaderVisible] = useState(true);
     const lastScrollY = useRef(0);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
+    const initialLoadRef = useRef(true);
 
     const wsRef = useRef<WebSocket | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    };
-
-    useEffect(scrollToBottom, [messages]);
+    // Only scroll to bottom for new messages, not on initial load
+    useEffect(() => {
+        if (initialLoadRef.current) {
+            // On initial load, scroll instantly without animation
+            messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+            initialLoadRef.current = false;
+        } else if (messages.length > 0) {
+            // New message - smooth scroll
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [messages]);
 
     // Fetch room info and messages
     useEffect(() => {
