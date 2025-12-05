@@ -1,6 +1,20 @@
 import axios from 'axios';
 
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+// Detect production environment and use appropriate API URL
+const getApiUrl = () => {
+    // Check if env variable is set
+    if (import.meta.env.VITE_API_URL) {
+        return import.meta.env.VITE_API_URL;
+    }
+    // Production detection - if on Vercel, use Render backend
+    if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+        return 'https://gm-uni.onrender.com/api/v1';
+    }
+    // Default to localhost for development
+    return 'http://localhost:8000/api/v1';
+};
+
+export const API_URL = getApiUrl();
 
 const api = axios.create({
     baseURL: API_URL,
