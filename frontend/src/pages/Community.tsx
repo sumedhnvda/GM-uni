@@ -312,18 +312,31 @@ const Community: React.FC = () => {
 
     const formatTime = (dateStr: string) => {
         const date = new Date(dateStr);
-        return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        return date.toLocaleTimeString('en-IN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'Asia/Kolkata'
+        });
     };
 
     const formatDate = (dateStr: string) => {
         const date = new Date(dateStr);
-        const today = new Date();
+        // Get today and yesterday in IST for comparison
+        const nowIST = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+        const today = new Date(nowIST);
         const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
 
-        if (date.toDateString() === today.toDateString()) return 'Today';
-        if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
-        return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+        // Format the message date in IST for comparison
+        const dateIST = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+
+        if (dateIST.toDateString() === today.toDateString()) return 'Today';
+        if (dateIST.toDateString() === yesterday.toDateString()) return 'Yesterday';
+        return date.toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            timeZone: 'Asia/Kolkata'
+        });
     };
 
     // Removed scroll handler - was causing shaking issues
