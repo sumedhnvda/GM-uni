@@ -217,13 +217,12 @@ async def get_media(file_id: str):
 
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
-    """Upload media file for chat with moderation and GridFS storage."""
+    """Upload media file for chat with CLIP captioning and Gemini moderation."""
     # Validate file type
     if not file.content_type.startswith(("image/", "video/")):
         raise HTTPException(status_code=400, detail="Only images and videos are allowed")
     
     # Check file size
-    # Read file into memory to check size and moderate
     # Limit: 10MB for images, 50MB for videos
     MAX_IMAGE_SIZE = 10 * 1024 * 1024
     MAX_VIDEO_SIZE = 50 * 1024 * 1024
@@ -234,10 +233,36 @@ async def upload_file(file: UploadFile = File(...), current_user: User = Depends
     
     if len(content) > limit:
         raise HTTPException(status_code=400, detail=f"File too large. Limit is {limit // (1024*1024)}MB")
-        
-
     
-    # Upload to GridFS
+    # Step 1: Get CLIP/BLIP captions for the media
+    from app.services.clip_service import clip_service
+    
+    try:
+        captions = await clip_service.get_media_captions(content, file.content_type)
+        print(f"CLIP Captions: {captions}")
+        
+        if not captions:
+            raise HTTPException(
+                status_code=400, 
+                detail="Could not analyze the image/video. Please try a different file."
+            )
+        
+        # Step 2: Validate captions with Gemini for agriculture relevance
+        is_allowed, reason = await gemini_service.validate_media_caption(captions)
+        
+        if not is_allowed:
+            raise HTTPException(status_code=400, detail=reason)
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Media moderation error: {e}")
+        raise HTTPException(
+            status_code=400, 
+            detail="Could not verify the image/video. Please try again."
+        )
+    
+    # Step 3: Upload to GridFS (only if moderation passed)
     if not db.fs:
         raise HTTPException(status_code=500, detail="GridFS not initialized")
         
@@ -248,8 +273,6 @@ async def upload_file(file: UploadFile = File(...), current_user: User = Depends
     )
     
     # Return URL
-    # Assuming API is mounted at /api/v1, so full path is /api/v1/community/media/{file_id}
-    # But frontend might need full URL or relative. Let's return relative to API root.
     return {"url": f"/api/v1/community/media/{str(file_id)}", "type": file.content_type}
 
 

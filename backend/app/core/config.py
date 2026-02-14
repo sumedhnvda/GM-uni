@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # Database & AI
     MONGODB_URL: str
     OPENAI_API_KEY: str
+    
+    # Hugging Face (for CLIP/BLIP image captioning)
+    HUGGINGFACE_API_KEY: str = ""
 
     # Security
     SECRET_KEY: str = "your_secret_key" # Change in production

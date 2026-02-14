@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import Response
 from typing import List, Dict, Optional, Any
 from pydantic import BaseModel
@@ -12,51 +12,10 @@ from app.services.sarvam_service import sarvam_service
 from app.services.chat_service import chat_service
 from app.services.geocoding_service import geocoding_service
 from app.models import AnalysisResult, UserInput, ChatSession, AnalysisHistory
-import shutil
-import uuid
-import base64
 from datetime import datetime
 import json
-import asyncio
-import traceback
-from google import genai
-from google.genai import types
-from app.core.config import settings
 
 router = APIRouter()
-
-from app.services.sms_service import sms_service
-from app.services.news_service import news_service
-
-class BroadcastRequest(BaseModel):
-    message: Optional[str] = None
-
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, WebSocket, WebSocketDisconnect, BackgroundTasks
-
-# ... (imports)
-
-@router.post("/admin/broadcast-news")
-async def trigger_broadcast(
-    request: BroadcastRequest,
-    current_user: User = Depends(get_current_user)
-):
-    """Manually trigger the weekly news broadcast (Admin only)."""
-    if current_user.email != "sumedhnavuda007@gmail.com":
-        raise HTTPException(status_code=403, detail="Not authorized")
-        
-    await news_service.broadcast_weekly_update(request.message)
-    return {"message": "Broadcast triggered successfully"}
-
-@router.get("/admin/broadcast-preview")
-async def get_broadcast_preview(
-    generate_news: bool = False,
-    current_user: User = Depends(get_current_user)
-):
-    """Get preview of the weekly broadcast (Admin only)."""
-    if current_user.email != "sumedhnavuda007@gmail.com":
-        raise HTTPException(status_code=403, detail="Not authorized")
-        
-    return await news_service.get_broadcast_preview(generate_news=generate_news)
 
 class UserProfileUpdate(BaseModel):
     username: Optional[str] = None
@@ -69,8 +28,6 @@ class UserProfileUpdate(BaseModel):
     land_size: str
     crops_grown: str
     preferred_language: str
-    phone_number: Optional[str] = None
-    sms_enabled: bool = False
 
 @router.put("/users/profile", response_model=User)
 async def update_user_profile(
@@ -86,9 +43,6 @@ async def update_user_profile(
                 detail="Username already taken. Please choose a different one."
             )
         current_user.username = profile.username
-    
-    # Check if SMS is being enabled for the first time (or re-enabled)
-    should_send_welcome = profile.sms_enabled and not current_user.sms_enabled
     
     # Update other profile fields
     if profile.full_name:
@@ -109,36 +63,7 @@ async def update_user_profile(
     current_user.land_size = profile.land_size
     current_user.crops_grown = profile.crops_grown
     current_user.preferred_language = profile.preferred_language
-    current_user.preferred_language = profile.preferred_language
-    
-    # Standardize phone number to +91
-    if profile.phone_number:
-        phone = profile.phone_number.strip()
-        if not phone.startswith("+"):
-            if len(phone) == 10:
-                phone = f"+91{phone}"
-            elif len(phone) == 12 and phone.startswith("91"):
-                phone = f"+{phone}"
-        current_user.phone_number = phone
-    else:
-        current_user.phone_number = None
-        
-    current_user.sms_enabled = profile.sms_enabled
-    
     await current_user.save()
-    
-    # Send Welcome SMS if enabled
-    if should_send_welcome and current_user.phone_number:
-        welcome_msg = "Welcome to Cropic! You will now receive weekly agricultural updates."
-        # Translate welcome message
-        if current_user.preferred_language and current_user.preferred_language != "en":
-             lang = current_user.preferred_language
-             if not lang.endswith("-IN") and lang != "en":
-                 lang = f"{lang}-IN"
-             welcome_msg = await sarvam_service.translate(welcome_msg, lang)
-             
-        sms_service.send_sms(current_user.phone_number, welcome_msg)
-        
     return current_user
 
 @router.get("/users/me", response_model=User)
@@ -597,151 +522,3 @@ Create a friendly, helpful summary that covers the key points and recommendation
         print(f"Summarize error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-# Gemini Live WebSocket Endpoint
-
-from app.api.auth import verify_token
-
-# ... (imports remain the same)
-
-class GeminiLiveSession:
-    def __init__(self, api_key: str, sys_instruction: str):
-        self.client = genai.Client(
-            api_key=api_key, 
-            http_options={"api_version": "v1alpha"}
-        )
-        self.model = "gemini-2.0-flash-exp"
-        self.config = {
-            "response_modalities": ["AUDIO"], 
-            "speech_config": {
-                "voice_config": {
-                    "prebuilt_voice_config": {
-                        "voice_name": "Zephyr"
-                    }
-                }
-            },
-            "system_instruction": sys_instruction
-        }
-        self.session = None
-        self.quit = asyncio.Event()
-        self.last_video_time = 0
-        
-    async def connect(self, websocket: WebSocket):
-        try:
-            async with self.client.aio.live.connect(model=self.model, config=self.config) as session:
-                self.session = session
-                print("Connected to Gemini Live")
-                
-                # Start receive loop
-                receive_task = asyncio.create_task(self.receive_from_gemini(websocket))
-                
-                try:
-                    while not self.quit.is_set():
-                        # Receive from WebSocket
-                        message = await websocket.receive_text()
-                        data = json.loads(message)
-                        
-                        if "realtime_input" in data:
-                            for chunk in data["realtime_input"]["media_chunks"]:
-                                if chunk["mime_type"] == "audio/pcm":
-                                    await session.send(input={"mime_type": "audio/pcm", "data": chunk["data"]})
-                                    
-                                elif chunk["mime_type"] == "image/jpeg":
-                                    # Throttle video to 1 FPS
-                                    import time
-                                    now = time.time()
-                                    if now - self.last_video_time > 1.0:
-                                        self.last_video_time = now
-                                        # print("Sending video frame to Gemini")
-                                        await session.send(input={"mime_type": "image/jpeg", "data": chunk["data"]})
-                                        
-                        elif "text_input" in data:
-                            print(f"Received text input: {data['text_input']}")
-                            await session.send(input=data["text_input"], end_of_turn=True)
-                        
-                        elif "type" in data and data["type"] == "end_session":
-                            print("Received end_session request")
-                            await websocket.send_json({"type": "session_ended"})
-                            self.quit.set()
-                            break
-                            
-                except WebSocketDisconnect:
-                    print("Client disconnected")
-                except Exception as e:
-                    print(f"Error in send loop: {e}")
-                finally:
-                    self.quit.set()
-                    receive_task.cancel()
-                    
-        except Exception as e:
-            print(f"Gemini Connection Error: {e}")
-            await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
-
-    async def receive_from_gemini(self, websocket: WebSocket):
-        try:
-            while not self.quit.is_set():
-                async for response in self.session.receive():
-                    if response.server_content is None:
-                        continue
-
-                    model_turn = response.server_content.model_turn
-                    if model_turn:
-                        for part in model_turn.parts:
-                            if part.inline_data:
-                                # print(f"Received audio response from Gemini ({len(part.inline_data.data)} bytes)")
-                                base64_audio = base64.b64encode(part.inline_data.data).decode('utf-8')
-                                await websocket.send_json({"audio": base64_audio})
-                            if part.text:
-                                print(f"Received text response from Gemini: {part.text}")
-                                await websocket.send_json({"text": part.text})
-
-                    if response.server_content.turn_complete:
-                        # print("Gemini turn complete")
-                        await websocket.send_json({"turn_complete": True})
-                        
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            print(f"Error receiving from Gemini: {e}")
-            self.quit.set()
-
-@router.websocket("/ws/live")
-async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = None):
-    await websocket.accept()
-    
-    # Authenticate
-    try:
-        if not token or token == "null" or token == "undefined":
-            print("WebSocket auth failed: Missing token")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-        
-        user = await verify_token(token)
-        print(f"WebSocket connected for user: {user.email}")
-    except Exception as e:
-        print(f"WebSocket auth failed: {e}")
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
-
-    # Build detailed user context
-    user_context = f"""
-    User Profile:
-    - Name: {user.full_name or 'Farmer'}
-    - Location: {user.location or 'India'}
-    - Crops Grown: {user.crops_grown or 'Various'}
-    - Land Size: {user.land_size or 'Unknown'}
-    - Farming Experience: {user.farming_experience or 'Unknown'}
-    - Preferred Language: {user.preferred_language or 'English'}
-    """
-
-    sys_instruction = f"""You are an agricultural expert assistant for Indian farmers. 
-    You provide helpful advice on crops, weather, prices, and government schemes. 
-    You DO NOT answer questions unrelated to agriculture (like movies, coding, politics). 
-    If asked about other topics, politely decline and steer the conversation back to farming. 
-    Keep responses concise and helpful.
-    
-    {user_context}
-    """
-    
-    session_handler = GeminiLiveSession(settings.GEMINI_API_KEY, sys_instruction)
-    await session_handler.connect(websocket)

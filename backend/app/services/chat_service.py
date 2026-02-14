@@ -165,21 +165,45 @@ class ChatService:
             print(f"Audio data size: {len(audio_data)} bytes")
             return ""
     
-    async def text_to_speech(self, text: str, target_language: str = "en-IN", speaker: str = "alloy") -> bytes:
-        """Convert text to speech using OpenAI TTS-1 model."""
+    async def text_to_speech(self, text: str, target_language: str = "en-IN", speaker: str = "anushka") -> bytes:
+        """Convert text to speech using Sarvam AI Bulbul."""
         try:
-            print(f"TTS: Processing text of length {len(text)} with OpenAI TTS-1")
+            headers = {
+                "api-subscription-key": self.sarvam_api_key,
+                "content-type": "application/json"
+            }
             
-            response = self.client.audio.speech.create(
-                model="tts-1",
-                voice="alloy",  # Options: alloy, echo, fable, onyx, nova, shimmer
-                input=text[:4096]  # Limit to OpenAI's max char limit
-            )
+            payload = {
+                "inputs": [text],
+                "target_language_code": target_language,
+                "speaker": speaker,
+                "pitch": 0,
+                "pace": 1.0,
+                "loudness": 1.5,
+                "speech_sample_rate": 22050,
+                "enable_preprocessing": True,
+                "model": "bulbul:v2"
+            }
             
-            return response.content
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    self.tts_url,
+                    headers=headers,
+                    json=payload,
+                    timeout=60.0
+                )
+                response.raise_for_status()
+                data = response.json()
                 
+                # Sarvam returns base64 encoded audio in 'audios' array
+                if "audios" in data and len(data["audios"]) > 0:
+                    import base64
+                    audio_b64 = data["audios"][0]
+                    return base64.b64decode(audio_b64)
+                
+                return b""
         except Exception as e:
-            print(f"OpenAI TTS Error: {e}")
+            print(f"Sarvam TTS Error: {e}")
             return b""
 
 chat_service = ChatService()

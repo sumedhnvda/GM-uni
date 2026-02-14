@@ -31,12 +31,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add COOP header for Google Sign-In
-@app.middleware("http")
-async def add_security_headers(request, call_next):
-    response = await call_next(request)
-    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
-    return response
+
 
 @app.get("/")
 def read_root():
