@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, SwitchCamera } from 'lucide-react';
+import { API_URL } from '../services/api';
 
 const LiveCall: React.FC = () => {
     const navigate = useNavigate();
@@ -301,18 +302,17 @@ const LiveCall: React.FC = () => {
                 return;
             }
 
-            // Derive WebSocket URL from API_URL for production
-            // API_URL is like https://gm-uni.onrender.com/api/v1 or http://localhost:8000/api/v1
+            // Derive WebSocket URL from API_URL
+            // API_URL is imported from services/api
             let wsBase: string;
-            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
             try {
-                const parsed = new URL(apiUrl);
+                const parsed = new URL(API_URL);
                 const wsProtocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
                 wsBase = `${wsProtocol}//${parsed.host}`;
             } catch {
-                // Fallback for local development
-                const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                wsBase = `${wsProtocol}//${window.location.hostname}:8000`;
+                // Should not happen with valid API_URL
+                console.error("Invalid API_URL", API_URL);
+                return;
             }
 
             const wsUrl = `${wsBase}/api/ws/live?token=${token}`;
