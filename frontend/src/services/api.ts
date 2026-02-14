@@ -1,20 +1,6 @@
 import axios from 'axios';
 
-// Detect production environment and use appropriate API URL
-const getApiUrl = () => {
-    // Check if env variable is set
-    if (import.meta.env.VITE_API_URL) {
-        return import.meta.env.VITE_API_URL;
-    }
-    // Production detection - if on Vercel, use Render backend
-    if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
-        return 'https://gm-uni.onrender.com/api/v1';
-    }
-    // Default to localhost for development
-    return 'http://localhost:8000/api/v1';
-};
-
-export const API_URL = getApiUrl();
+const API_URL = 'http://localhost:8000/api/v1';
 
 const api = axios.create({
     baseURL: API_URL,
@@ -31,10 +17,8 @@ api.interceptors.request.use((config) => {
     return Promise.reject(error);
 });
 
-export const loginWithGoogle = async (token: string) => {
-    const response = await api.post('/auth/google', null, {
-        params: { token },
-    });
+export const loginWithGoogle = async (email: string, name: string) => {
+    const response = await api.post('/auth/login', { email, name });
     return response.data;
 };
 

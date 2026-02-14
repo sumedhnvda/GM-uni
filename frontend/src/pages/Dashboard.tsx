@@ -3,15 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Sprout, CloudSun, TrendingUp, FileText, Download, Volume2, Loader2, Plus } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 import Chatbot from '../components/Chatbot';
-import AudioPlayer from '../components/AudioPlayer';
 import api from '../services/api';
 
 const Dashboard: React.FC = () => {
     const navigate = useNavigate();
     const [data, setData] = useState<any>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
     const [isSummarizing, setIsSummarizing] = useState(false);
-    const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
     useEffect(() => {
         const result = localStorage.getItem('analysisResult');
@@ -22,55 +23,55 @@ const Dashboard: React.FC = () => {
         setData(JSON.parse(result));
     }, [navigate]);
 
-    const downloadImage = async () => {
+    const downloadPDF = async () => {
         const element = document.getElementById('report-content');
         if (!element) return;
 
         try {
+            const canvas = await html2canvas(element, { scale: 2 });
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
 
-            // Import html-to-image
-            const { toPng } = await import('html-to-image');
+            const margin = 10;
+            const contentWidth = pdfWidth - 2 * margin;
+            const contentHeight = (canvas.height * contentWidth) / canvas.width;
 
-            // Generate image
-            const dataUrl = await toPng(element, {
-                quality: 1.0,
-                backgroundColor: '#ffffff',
-                style: {
-                    // Force white background and ensure text is visible
-                    backgroundColor: '#ffffff',
-                },
-                // Filter out any potential problematic elements if needed
-                filter: (node) => {
-                    // Example: exclude buttons from the print
-                    if (node.tagName === 'BUTTON') return false;
-                    return true;
+            let position = margin;
+            let imgHeight = contentHeight;
+
+            if (imgHeight < pdf.internal.pageSize.getHeight() - 2 * margin) {
+                pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, contentHeight);
+            } else {
+                let heightLeft = imgHeight;
+                let pageNum = 1;
+
+                while (heightLeft > 0) {
+                    if (pageNum > 1) {
+                        pdf.addPage();
+                    }
+                    pdf.addImage(imgData, 'PNG', margin, position, contentWidth, imgHeight);
+                    heightLeft -= (pdf.internal.pageSize.getHeight() - 2 * margin);
+                    position -= (pdf.internal.pageSize.getHeight() - 2 * margin);
+                    pageNum++;
                 }
-            });
+            }
 
-
-            // Create download link
-            const link = document.createElement('a');
-            link.download = 'cropic-report.png';
-            link.href = dataUrl;
-            link.click();
+            pdf.save('cropic-report.pdf');
         } catch (error) {
-            console.error('Image generation failed', error);
-            alert(`Failed to generate image: ${error instanceof Error ? error.message : String(error)}`);
+            console.error('PDF generation failed', error);
         }
     };
-
-
 
     const speakReport = async () => {
         if (!data || isSummarizing) return;
 
         setIsSummarizing(true);
-        setAudioUrl(null);
 
         try {
             const token = localStorage.getItem('token');
             const userLanguage = localStorage.getItem('userLanguage') || 'en-IN';
-
+            
             const response = await api.post('/analysis/summarize', {
                 soil_type: data.soil_type,
                 recommended_crops: data.recommended_crops,
@@ -83,80 +84,80 @@ const Dashboard: React.FC = () => {
             });
 
             if (response.data.audio) {
-                // Set URL for AudioPlayer - it handles autoPlay
-                const audioData = atob(response.data.audio);
-                const arrayBuffer = new ArrayBuffer(audioData.length);
-                const uint8Array = new Uint8Array(arrayBuffer);
-                for (let i = 0; i < audioData.length; i++) {
-                    uint8Array[i] = audioData.charCodeAt(i);
-                }
-                const blob = new Blob([uint8Array], { type: 'audio/wav' });
-                const url = URL.createObjectURL(blob);
-                setAudioUrl(url);
-            } else if (response.data.summary) {
-                alert("Summary generated but audio synthesis failed. The backend TTS service may be unavailable.");
+                playAudio(response.data.audio);
             }
-        } catch (error: any) {
+        } catch (error) {
             console.error('Summary failed:', error);
-            const errorMessage = error.response?.data?.detail || 'Could not generate audio summary. Please try again.';
-            alert(errorMessage);
+            alert('Could not generate audio summary. Please try again.');
         } finally {
             setIsSummarizing(false);
+        }
+    };
+
+    const playAudio = (base64Audio: string) => {
+        try {
+            const audioData = atob(base64Audio);
+            const arrayBuffer = new ArrayBuffer(audioData.length);
+            const uint8Array = new Uint8Array(arrayBuffer);
+            for (let i = 0; i < audioData.length; i++) {
+                uint8Array[i] = audioData.charCodeAt(i);
+            }
+            const blob = new Blob([uint8Array], { type: 'audio/mpeg' });
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+
+            setIsPlaying(true);
+            audio.onended = () => setIsPlaying(false);
+            audio.play();
+        } catch (error) {
+            console.error('Audio playback error:', error);
+            setIsPlaying(false);
         }
     };
 
     if (!data) return null;
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-4 sm:p-8 pb-24 md:pb-8">
+        <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 p-4 sm:p-8">
             <div className="max-w-6xl mx-auto">
-                {/* Header - Mobile Responsive */}
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 md:mb-8">
-                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Analysis Report</h1>
-                    <div className="flex gap-2 flex-wrap items-center">
-                        {audioUrl ? (
-                            <div className="mr-2">
-                                <AudioPlayer audioSrc={audioUrl} autoPlay />
-                            </div>
-                        ) : (
-                            <button
-                                onClick={speakReport}
-                                disabled={isSummarizing}
-                                className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-xl transition-all font-medium text-sm md:text-base touch-active ${isSummarizing
-                                    ? 'bg-emerald-100 text-emerald-600'
-                                    : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white'
-                                    }`}
-                                title="Listen to report summary"
-                            >
-                                {isSummarizing ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                    <Volume2 className="w-4 h-4" />
-                                )}
-                                <span className="hidden sm:inline">{isSummarizing ? 'Summarizing...' : 'Listen'}</span>
-                            </button>
-                        )}
+                <div className="flex justify-between items-center mb-8">
+                    <h1 className="text-3xl font-bold text-gray-900">Analysis Report</h1>
+                    <div className="flex gap-3 flex-wrap">
                         <button
-                            onClick={downloadImage}
-                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 md:px-4 py-2 rounded-xl transition-colors font-medium text-sm md:text-base touch-active"
-                            title="Download report as image"
+                            onClick={speakReport}
+                            disabled={isSummarizing || isPlaying}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-medium ${isSummarizing || isPlaying
+                                ? 'bg-emerald-100 text-emerald-600'
+                                : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white'
+                                }`}
+                            title="Listen to report summary"
                         >
-                            <Download className="w-4 h-4" />
-                            <span className="hidden sm:inline">Image</span>
+                            {isSummarizing ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Volume2 className={`w-4 h-4 ${isPlaying ? 'animate-pulse' : ''}`} />
+                            )}
+                            {isSummarizing ? 'Summarizing...' : isPlaying ? 'Playing...' : 'Listen'}
                         </button>
                         <button
-                            onClick={() => navigate('/choice', { state: { openAnalysis: true } })}
-                            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 md:px-4 py-2 rounded-xl transition-colors font-medium text-sm md:text-base touch-active"
+                            onClick={downloadPDF}
+                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl transition-colors font-medium"
+                            title="Download report as PDF"
+                        >
+                            <Download className="w-4 h-4" /> PDF
+                        </button>
+                        <button
+                            onClick={() => navigate('/choice')}
+                            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl transition-colors font-medium"
                             title="Start a new analysis"
                         >
-                            <Plus className="w-4 h-4" />
-                            <span className="hidden sm:inline">New</span>
+                            <Plus className="w-4 h-4" /> New Analysis
                         </button>
                     </div>
                 </div>
 
                 <div id="report-content" className="bg-white/50 backdrop-blur-sm p-4 rounded-2xl">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                         {/* Soil Type */}
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}

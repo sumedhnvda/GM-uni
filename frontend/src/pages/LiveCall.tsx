@@ -42,17 +42,10 @@ const LiveCall: React.FC = () => {
         if (!mediaStreamRef.current || !isStreaming) return;
 
         const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
-        setFacingMode(newFacingMode);
 
         try {
-            // Stop current video track
-            const videoTrack = mediaStreamRef.current.getVideoTracks()[0];
-            if (videoTrack) {
-                videoTrack.stop();
-            }
-
-            // Get new stream with different facing mode
-            const newStream = await navigator.mediaDevices.getUserMedia({
+            // First, get the new video stream BEFORE disrupting anything
+            const newVideoStream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     facingMode: newFacingMode,
                     width: 640,
@@ -61,18 +54,37 @@ const LiveCall: React.FC = () => {
                 }
             });
 
-            const newVideoTrack = newStream.getVideoTracks()[0];
+            const newVideoTrack = newVideoStream.getVideoTracks()[0];
 
-            // Replace track in current stream
-            mediaStreamRef.current.removeTrack(videoTrack);
+            // Get reference to old video track
+            const oldVideoTrack = mediaStreamRef.current.getVideoTracks()[0];
+
+            // Remove old track from stream first (before stopping)
+            if (oldVideoTrack) {
+                mediaStreamRef.current.removeTrack(oldVideoTrack);
+            }
+
+            // Add new video track to the existing stream (preserves audio track)
             mediaStreamRef.current.addTrack(newVideoTrack);
 
-            if (videoRef.current) {
-                videoRef.current.srcObject = mediaStreamRef.current;
+            // Now stop the old track (after it's been replaced)
+            if (oldVideoTrack) {
+                oldVideoTrack.stop();
             }
+
+            // Reassign stream to video element to ensure it picks up the new track
+            if (videoRef.current) {
+                videoRef.current.srcObject = null; // Clear first
+                videoRef.current.srcObject = mediaStreamRef.current;
+                await videoRef.current.play().catch(() => { }); // Ensure video plays
+            }
+
+            // Update state only after successful switch
+            setFacingMode(newFacingMode);
+            console.log('Camera switched to:', newFacingMode);
         } catch (err) {
-            // Revert facing mode on error
-            setFacingMode(facingMode);
+            console.error('Failed to switch camera:', err);
+            // Don't change facingMode state on error
         }
     };
 

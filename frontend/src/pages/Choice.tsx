@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, useOutletContext } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Sprout, ArrowRight, MapPin, Ruler, History, Languages, X, Edit2, Check, Loader2, Video, Users } from 'lucide-react';
+import { MessageSquare, Sprout, ArrowRight, MapPin, Ruler, History, Languages, X, Edit2, Check, Loader2 } from 'lucide-react';
 import api, { analyzeCrops } from '../services/api';
 
 // All languages supported by Sarvam AI Translation API
@@ -32,19 +32,8 @@ const SARVAM_LANGUAGES = [
     { code: 'brx-IN', label: 'Bodo (बड़ो)' },
 ];
 
-// Conversion factors to acres
-const UNIT_TO_ACRES: Record<string, number> = {
-    'acres': 1,
-    'cents': 0.01,
-    'hectares': 2.471,
-    'sqft': 0.0000229568
-};
-
 const Choice: React.FC = () => {
     const navigate = useNavigate();
-    const location = useLocation();
-    const { refreshHistory } = useOutletContext<{ refreshHistory?: () => void }>() || {};
-
     const [showAnalysisModal, setShowAnalysisModal] = useState(false);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -62,58 +51,7 @@ const Choice: React.FC = () => {
         preferred_language: 'en-IN'
     });
 
-    const [landValue, setLandValue] = useState('');
-    const [landUnit, setLandUnit] = useState('acres');
-    const [detectingLocation, setDetectingLocation] = useState(false);
-
     const [pageLoading, setPageLoading] = useState(true);
-
-    // Check for openAnalysis state
-    useEffect(() => {
-        if (location.state?.openAnalysis) {
-            setShowAnalysisModal(true);
-            // Optional: Clear state to prevent reopening on refresh? 
-            // React Router's location state persists, but we can leave it.
-            // If we wanted to clear it, we'd need to navigate again with replace.
-            // navigate(location.pathname, { replace: true, state: {} });
-        }
-    }, [location.state]);
-
-    // Convert land size to acres when value or unit changes
-    useEffect(() => {
-        if (landValue && !isNaN(parseFloat(landValue))) {
-            const valueInAcres = parseFloat(landValue) * UNIT_TO_ACRES[landUnit];
-            setEditForm(prev => ({
-                ...prev,
-                land_size: `${valueInAcres.toFixed(2)} acres`
-            }));
-        }
-    }, [landValue, landUnit]);
-
-    const handleLocationDetect = () => {
-        setDetectingLocation(true);
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                async (position) => {
-                    try {
-                        const { latitude, longitude } = position.coords;
-                        setEditForm(prev => ({ ...prev, location: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` }));
-                    } catch (error) {
-                        console.error("Location error", error);
-                    } finally {
-                        setDetectingLocation(false);
-                    }
-                },
-                (error) => {
-                    console.error("Geolocation error", error);
-                    setDetectingLocation(false);
-                }
-            );
-        } else {
-            alert("Geolocation is not supported by this browser.");
-            setDetectingLocation(false);
-        }
-    };
 
     // Fetch user profile on mount
     useEffect(() => {
@@ -146,14 +84,6 @@ const Choice: React.FC = () => {
             // Profile incomplete, open modal in edit mode to complete it here
             setShowAnalysisModal(true);
             setIsEditing(true);
-
-            // Parse land size if exists
-            if (profileData?.land_size) {
-                const match = profileData.land_size.match(/^([\d.]+)/);
-                if (match) {
-                    setLandValue(match[1]);
-                }
-            }
         }
     };
 
@@ -197,10 +127,6 @@ const Choice: React.FC = () => {
 
             const result = await analyzeCrops(payload, token);
             localStorage.setItem('analysisResult', JSON.stringify(result));
-
-            // Refresh history to show new analysis in sidebar
-            if (refreshHistory) await refreshHistory();
-
             navigate('/dashboard');
         } catch (error) {
             console.error('Analysis failed', error);
@@ -219,98 +145,58 @@ const Choice: React.FC = () => {
     }
 
     return (
-        <div className="min-h-full p-4 md:p-12 flex flex-col items-center justify-center pb-24 md:pb-12">
+        <div className="min-h-full p-6 md:p-12 flex flex-col items-center justify-center">
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-center mb-8 md:mb-12"
+                className="text-center mb-12"
             >
-                <h1 className="text-2xl md:text-4xl font-bold text-gray-900 mb-3 md:mb-4">
+                <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
                     How can we help you today?
                 </h1>
-                <p className="text-gray-600 max-w-lg mx-auto text-sm md:text-base px-4">
+                <p className="text-gray-600 max-w-lg mx-auto">
                     Choose to chat with our AI assistant for quick advice or start a deep analysis of your farm conditions.
                 </p>
             </motion.div>
 
-            <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 max-w-6xl w-full px-2">
+            <div className="grid md:grid-cols-2 gap-6 max-w-4xl w-full">
                 {/* Chat Option */}
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.1 }}
                     onClick={() => navigate('/chat')}
-                    className="bg-white/90 backdrop-blur-sm p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-lg border border-white/50 cursor-pointer hover:shadow-xl hover:border-blue-200 transition-all duration-300 group hover:-translate-y-1 md:hover:-translate-y-2 touch-active"
+                    className="bg-white/80 backdrop-blur-xl p-8 rounded-3xl shadow-xl border border-white/50 cursor-pointer hover:shadow-2xl hover:border-blue-200 transition-all duration-300 group hover:-translate-y-2"
                 >
-                    <div className="w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl md:rounded-2xl flex items-center justify-center mb-3 md:mb-6 group-hover:scale-105 transition-transform shadow-lg">
-                        <MessageSquare className="w-6 h-6 md:w-8 md:h-8 text-white" />
+                    <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-lg">
+                        <MessageSquare className="w-8 h-8 text-white" />
                     </div>
-                    <h2 className="text-lg md:text-2xl font-bold text-gray-900 mb-1 md:mb-3">AI Chat</h2>
-                    <p className="text-gray-500 mb-3 md:mb-6 text-xs md:text-base line-clamp-2 md:line-clamp-none">
-                        Get instant answers about crops, pests, and farming techniques.
+                    <h2 className="text-2xl font-bold text-gray-900 mb-3">AI Assistant</h2>
+                    <p className="text-gray-500 mb-6">
+                        Chat with our advanced AI to get instant answers about crops, pests, and farming techniques.
                     </p>
-                    <div className="flex items-center text-blue-600 font-semibold group-hover:translate-x-1 md:group-hover:translate-x-2 transition-transform text-sm md:text-base">
-                        Start <ArrowRight className="w-4 h-4 md:w-5 md:h-5 ml-1 md:ml-2" />
+                    <div className="flex items-center text-blue-600 font-semibold group-hover:translate-x-2 transition-transform">
+                        Start Chatting <ArrowRight className="w-5 h-5 ml-2" />
                     </div>
                 </motion.div>
 
                 {/* Analysis Option */}
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.2 }}
                     onClick={handleAnalysisClick}
-                    className="bg-white/90 backdrop-blur-sm p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-lg border border-white/50 cursor-pointer hover:shadow-xl hover:border-emerald-200 transition-all duration-300 group hover:-translate-y-1 md:hover:-translate-y-2 touch-active"
+                    className="bg-white/80 backdrop-blur-xl p-8 rounded-3xl shadow-xl border border-white/50 cursor-pointer hover:shadow-2xl hover:border-emerald-200 transition-all duration-300 group hover:-translate-y-2"
                 >
-                    <div className="w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-xl md:rounded-2xl flex items-center justify-center mb-3 md:mb-6 group-hover:scale-105 transition-transform shadow-lg">
-                        <Sprout className="w-6 h-6 md:w-8 md:h-8 text-white" />
+                    <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform shadow-lg">
+                        <Sprout className="w-8 h-8 text-white" />
                     </div>
-                    <h2 className="text-lg md:text-2xl font-bold text-gray-900 mb-1 md:mb-3">Analysis</h2>
-                    <p className="text-gray-500 mb-3 md:mb-6 text-xs md:text-base line-clamp-2 md:line-clamp-none">
-                        Comprehensive report on soil, weather, and crop viability.
+                    <h2 className="text-2xl font-bold text-gray-900 mb-3">Deep Analysis</h2>
+                    <p className="text-gray-500 mb-6">
+                        Get a comprehensive report on soil health, weather, and crop viability using satellite data.
                     </p>
-                    <div className="flex items-center text-emerald-600 font-semibold group-hover:translate-x-1 md:group-hover:translate-x-2 transition-transform text-sm md:text-base">
-                        Start <ArrowRight className="w-4 h-4 md:w-5 md:h-5 ml-1 md:ml-2" />
-                    </div>
-                </motion.div>
-
-                {/* Live Expert Option */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                    onClick={() => navigate('/live')}
-                    className="bg-white/90 backdrop-blur-sm p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-lg border border-white/50 cursor-pointer hover:shadow-xl hover:border-purple-200 transition-all duration-300 group hover:-translate-y-1 md:hover:-translate-y-2 touch-active"
-                >
-                    <div className="w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl md:rounded-2xl flex items-center justify-center mb-3 md:mb-6 group-hover:scale-105 transition-transform shadow-lg">
-                        <Video className="w-6 h-6 md:w-8 md:h-8 text-white" />
-                    </div>
-                    <h2 className="text-lg md:text-2xl font-bold text-gray-900 mb-1 md:mb-3">Live Call</h2>
-                    <p className="text-gray-500 mb-3 md:mb-6 text-xs md:text-base line-clamp-2 md:line-clamp-none">
-                        Video call with AI expert for real-time diagnosis.
-                    </p>
-                    <div className="flex items-center text-purple-600 font-semibold group-hover:translate-x-1 md:group-hover:translate-x-2 transition-transform text-sm md:text-base">
-                        Start <ArrowRight className="w-4 h-4 md:w-5 md:h-5 ml-1 md:ml-2" />
-                    </div>
-                </motion.div>
-
-                {/* Community Chat Option */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
-                    onClick={() => navigate('/community')}
-                    className="bg-white/90 backdrop-blur-sm p-4 md:p-8 rounded-2xl md:rounded-3xl shadow-lg border border-white/50 cursor-pointer hover:shadow-xl hover:border-orange-200 transition-all duration-300 group hover:-translate-y-1 md:hover:-translate-y-2 touch-active"
-                >
-                    <div className="w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-orange-400 to-amber-500 rounded-xl md:rounded-2xl flex items-center justify-center mb-3 md:mb-6 group-hover:scale-105 transition-transform shadow-lg">
-                        <Users className="w-6 h-6 md:w-8 md:h-8 text-white" />
-                    </div>
-                    <h2 className="text-lg md:text-2xl font-bold text-gray-900 mb-1 md:mb-3">Community</h2>
-                    <p className="text-gray-500 mb-3 md:mb-6 text-xs md:text-base line-clamp-2 md:line-clamp-none">
-                        Connect with local farmers and share experiences.
-                    </p>
-                    <div className="flex items-center text-orange-600 font-semibold group-hover:translate-x-1 md:group-hover:translate-x-2 transition-transform text-sm md:text-base">
-                        Join <ArrowRight className="w-4 h-4 md:w-5 md:h-5 ml-1 md:ml-2" />
+                    <div className="flex items-center text-emerald-600 font-semibold group-hover:translate-x-2 transition-transform">
+                        Start Analysis <ArrowRight className="w-5 h-5 ml-2" />
                     </div>
                 </motion.div>
             </div>
@@ -357,60 +243,36 @@ const Choice: React.FC = () => {
                             {/* Data Display / Edit Form */}
                             <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-5 rounded-2xl space-y-3 mb-6 border border-emerald-100">
                                 {/* Location */}
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-gray-500 flex items-center gap-2 text-sm">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-500 flex items-center gap-2">
                                         <MapPin className="w-4 h-4" /> Location
                                     </span>
                                     {isEditing ? (
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="text"
-                                                value={editForm.location}
-                                                onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                                                placeholder="City or Coordinates"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={handleLocationDetect}
-                                                disabled={detectingLocation}
-                                                className="px-3 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 disabled:opacity-50 text-sm whitespace-nowrap"
-                                            >
-                                                {detectingLocation ? '...' : 'Detect'}
-                                            </button>
-                                        </div>
+                                        <input
+                                            type="text"
+                                            value={editForm.location}
+                                            onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                                            className="px-3 py-1 border border-gray-300 rounded-lg text-right w-[60%] focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        />
                                     ) : (
-                                        <span className="font-semibold text-gray-900">{profileData.location}</span>
+                                        <span className="font-semibold text-gray-900 text-right max-w-[60%] truncate">{profileData.location}</span>
                                     )}
                                 </div>
                                 <div className="border-t border-emerald-100"></div>
 
                                 {/* Land Size */}
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-gray-500 flex items-center gap-2 text-sm">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-500 flex items-center gap-2">
                                         <Ruler className="w-4 h-4" /> Land Size
                                     </span>
                                     {isEditing ? (
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="number"
-                                                value={landValue}
-                                                onChange={(e) => setLandValue(e.target.value)}
-                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
-                                                placeholder="Size"
-                                                step="0.01"
-                                            />
-                                            <select
-                                                value={landUnit}
-                                                onChange={(e) => setLandUnit(e.target.value)}
-                                                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
-                                            >
-                                                <option value="acres">Acres</option>
-                                                <option value="cents">Cents</option>
-                                                <option value="hectares">Hectares</option>
-                                                <option value="sqft">Sq Ft</option>
-                                            </select>
-                                        </div>
+                                        <input
+                                            type="text"
+                                            value={editForm.land_size}
+                                            onChange={(e) => setEditForm({ ...editForm, land_size: e.target.value })}
+                                            placeholder="e.g., 5 acres"
+                                            className="px-3 py-1 border border-gray-300 rounded-lg text-right w-[60%] focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        />
                                     ) : (
                                         <span className="font-semibold text-gray-900">{profileData.land_size}</span>
                                     )}
@@ -418,17 +280,17 @@ const Choice: React.FC = () => {
                                 <div className="border-t border-emerald-100"></div>
 
                                 {/* Crops */}
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-gray-500 flex items-center gap-2 text-sm">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-gray-500 flex items-center gap-2">
                                         <History className="w-4 h-4" /> Crops
                                     </span>
                                     {isEditing ? (
-                                        <textarea
+                                        <input
+                                            type="text"
                                             value={editForm.crops_grown}
                                             onChange={(e) => setEditForm({ ...editForm, crops_grown: e.target.value })}
                                             placeholder="e.g., Rice, Wheat"
-                                            rows={2}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
+                                            className="px-3 py-1 border border-gray-300 rounded-lg text-right w-[60%] focus:ring-2 focus:ring-emerald-500 outline-none"
                                         />
                                     ) : (
                                         <span className="font-semibold text-gray-900">{profileData.crops_grown}</span>
@@ -469,11 +331,6 @@ const Choice: React.FC = () => {
                                                     crops_grown: profileData.crops_grown || '',
                                                     preferred_language: profileData.preferred_language || 'en-IN'
                                                 });
-                                                // Reset land value
-                                                if (profileData.land_size) {
-                                                    const match = profileData.land_size.match(/^([\d.]+)/);
-                                                    if (match) setLandValue(match[1]);
-                                                }
                                             }}
                                             disabled={saving}
                                             className="flex-1 px-5 py-3 border-2 border-gray-200 text-gray-700 rounded-2xl hover:bg-gray-50 font-semibold transition-colors"
@@ -497,13 +354,7 @@ const Choice: React.FC = () => {
                                 ) : (
                                     <>
                                         <button
-                                            onClick={() => {
-                                                setIsEditing(true);
-                                                if (profileData.land_size) {
-                                                    const match = profileData.land_size.match(/^([\d.]+)/);
-                                                    if (match) setLandValue(match[1]);
-                                                }
-                                            }}
+                                            onClick={() => setIsEditing(true)}
                                             disabled={loading}
                                             className="flex-1 px-5 py-3 border-2 border-gray-200 text-gray-700 rounded-2xl hover:bg-gray-50 font-semibold transition-colors flex items-center justify-center gap-2"
                                         >

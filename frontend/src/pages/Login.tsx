@@ -1,32 +1,30 @@
-import React from 'react';
-import { GoogleLogin } from '@react-oauth/google';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loginWithGoogle } from '../services/api';
+import { loginWithGoogle } from '../services/api'; // We will update this function name next
 import { motion } from 'framer-motion';
 import { Sprout } from 'lucide-react';
 
 const Login: React.FC = () => {
     const navigate = useNavigate();
-    const [isLoading, setIsLoading] = React.useState(false);
-    const [error, setError] = React.useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [email, setEmail] = useState('');
+    const [name, setName] = useState('');
+    const [error, setError] = useState<string | null>(null);
 
-    const handleSuccess = async (credentialResponse: any) => {
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
         setIsLoading(true);
         setError(null);
         try {
-            if (credentialResponse.credential) {
-                // Verify with backend and get custom JWT
-                const data = await loginWithGoogle(credentialResponse.credential);
-                localStorage.setItem('token', data.access_token);
+            // Updated login function (we'll update api.ts next)
+            // For now, continuing to use the symbol loginWithGoogle but it will map to the new endpoint
+            const data = await loginWithGoogle(email, name);
+            localStorage.setItem('token', data.access_token);
 
-                // Backend now tells us if profile is complete
-                if (data.profile_complete) {
-                    // Existing user with complete profile -> go to Choice
-                    navigate('/choice');
-                } else {
-                    // New user or incomplete profile -> go to Profile
-                    navigate('/profile');
-                }
+            if (data.profile_complete) {
+                navigate('/choice');
+            } else {
+                navigate('/profile');
             }
         } catch (error) {
             console.error('Login failed', error);
@@ -64,22 +62,44 @@ const Login: React.FC = () => {
                     </div>
                 )}
 
-                <div className="flex justify-center relative">
-                    {isLoading ? (
-                        <div className="flex items-center gap-2 text-green-600 font-medium py-2">
-                            <div className="w-5 h-5 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
-                            Signing in...
-                        </div>
-                    ) : (
-                        <GoogleLogin
-                            onSuccess={handleSuccess}
-                            onError={() => {
-                                setError('Google Login Failed');
-                            }}
-                            useOneTap
+                <form onSubmit={handleLogin} className="flex flex-col gap-4">
+                    <div className="text-left">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                        <input
+                            type="email"
+                            required
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
+                            placeholder="your@email.com"
                         />
-                    )}
-                </div>
+                    </div>
+                    <div className="text-left">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Name (Optional)</label>
+                        <input
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
+                            placeholder="Your Name"
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white py-3 rounded-lg font-semibold hover:from-emerald-600 hover:to-teal-700 transition-all transform hover:scale-[1.02] flex justify-center items-center gap-2 mt-4"
+                    >
+                        {isLoading ? (
+                            <>
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                Signing in...
+                            </>
+                        ) : (
+                            'Sign In with Email'
+                        )}
+                    </button>
+                </form>
 
                 <p className="mt-8 text-xs text-gray-400">
                     By continuing, you agree to our Terms of Service and Privacy Policy.
