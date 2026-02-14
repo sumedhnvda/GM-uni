@@ -34,6 +34,19 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
+async def verify_token(token: str):
+    """Verify a JWT token and return the user. Used by WebSocket endpoints."""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            return None
+    except JWTError:
+        return None
+
+    user = await User.find_one(User.email == email)
+    return user
+
 @router.post("/auth/login")
 async def login(request: LoginRequest):
     email = request.email
